@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Exclude authentication state and user accounts from unencrypted cloud backup -->
+        <exclude domain="sharedpref" path="wave_auth_prefs.xml"/>
+        <exclude domain="sharedpref" path="wave_user_accounts.xml"/>
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="wave_auth_prefs.xml"/>
+        <exclude domain="sharedpref" path="wave_user_accounts.xml"/>
+    </device-transfer>
+</data-extraction-rules>

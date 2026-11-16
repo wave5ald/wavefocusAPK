@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <!-- Golden Sun Circle: cx=364, cy=178, r=65 -->
+    <path
+        android:fillColor="#FFC837"
+        android:pathData="M 364,113 A 65,65 0 1,1 363.9,113 Z" />
+
+    <!-- Vibrant Royal Blue Wave with rounded caps -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#226EF6"
+        android:strokeWidth="72"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M 68,306 C 115,236 190,225 242,260 C 294,295 316,365 375,365 C 410,365 435,325 446,288" />
+</vector>

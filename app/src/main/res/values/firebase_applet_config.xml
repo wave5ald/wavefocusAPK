@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Web OAuth 2.0 client ID for the Wave Focus Firebase project
+      (gen-lang-client-0965379779), the same project the PWA uses.
+      This is the public web client of the project's Google sign-in provider.
+
+      Override it here if the OAuth client is rotated. Leaving it empty makes
+      FirebaseManager fall back to FirebaseConfig.WEB_CLIENT_ID.
+    -->
+    <string name="wave_web_client_id" translatable="false">108217230951-g30odod8il3skd5vocr2edlthseqilr2.apps.googleusercontent.com</string>
+</resources>

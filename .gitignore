@@ -1,0 +1,10 @@
+﻿.gradle/
+build/
+.kotlin/
+.idea/
+local.properties
+*.jks
+*.keystore
+*.apk
+!WaveFocus-2.0.apk
+captures/
