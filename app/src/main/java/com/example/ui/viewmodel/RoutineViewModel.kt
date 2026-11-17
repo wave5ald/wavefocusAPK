@@ -37,6 +37,12 @@ import com.example.data.security.CryptoManager
 import com.example.data.sync.CloudSyncManager
 import com.example.data.sync.SyncState
 import com.example.service.FocusTimerService
+import com.example.update.AndroidRelease
+import com.example.update.AppVersion
+import com.example.update.InstallOutcome
+import com.example.update.SemVer
+import com.example.update.UpdateChecker
+import com.example.update.UpdateState
 import com.example.util.HijriCalendarHelper
 import com.example.util.LocationWeather
 import com.example.util.HijriSync
@@ -197,6 +203,20 @@ class RoutineViewModel(application: Application) : AndroidViewModel(application)
     private val _userMessage = MutableStateFlow<String?>(null)
     val userMessage: StateFlow<String?> = _userMessage.asStateFlow()
 
+    // --- In-app updates -----------------------------------------------------
+    private val updateChecker = UpdateChecker(manifestUrl = UpdateChecker.DEFAULT_MANIFEST_URL)
+    private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
+
+    private val _updateBannerDismissed = MutableStateFlow(false)
+    val updateBannerDismissed: StateFlow<Boolean> = _updateBannerDismissed.asStateFlow()
+
+    private val _installPermissionNeeded = MutableStateFlow(false)
+    val installPermissionNeeded: StateFlow<Boolean> = _installPermissionNeeded.asStateFlow()
+
+    val appVersionName: String = AppVersion.name
+    val appVersionCode: Int = AppVersion.code
+
     // Custom Pages & Workspaces
     private val _customPages = MutableStateFlow(loadCustomPagesFromPrefs())
     val customPages: StateFlow<List<CustomPageItem>> = _customPages.asStateFlow()
@@ -353,6 +373,27 @@ class RoutineViewModel(application: Application) : AndroidViewModel(application)
         HijriCalendarHelper.setOffsetDays(prefs.getInt("hijri_offset_days", 0))
         checkAndApplyScheduledPresets(_selectedDate.value)
         verifyHijriCalendar()
+        // Look for a newer APK shortly after launch (silent when offline).
+        viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(5_000)
+            if (prefs.getBoolean("auto_update_check", true)) checkForUpdates()
+        }
+        // Roll the routine day over automatically when the reset time passes.
+        viewModelScope.launch(Dispatchers.Default) {
+            var lastDay = _selectedDate.value
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                val today = routineToday()
+                if (today != lastDay) {
+                    val wasFollowingToday = _selectedDate.value == lastDay
+                    lastDay = today
+                    if (wasFollowingToday) {
+                        _selectedDate.value = today
+                        _calendarMonth.value = YearMonth.from(today)
+                    }
+                }
+            }
+        }
         viewModelScope.launch(Dispatchers.IO) {
             // Ensure the hijri/islamic database routine page starts completely empty
             if (!prefs.getBoolean("has_cleared_initial_islamic_tasks_v5", false)) {
@@ -462,6 +503,115 @@ class RoutineViewModel(application: Application) : AndroidViewModel(application)
         _selectedDate.value = RoutineDay.today(value)
         _calendarMonth.value = YearMonth.from(_selectedDate.value)
     }
+
+    // --- In-app updates -----------------------------------------------------
+
+    /**
+     * Checks the hosted `version.json` for a newer APK.
+     *
+     * @param notify when true (manual check) the result is also surfaced as a
+     *   snackbar. Automatic checks stay silent so startup is never noisy.
+     */
+    fun checkForUpdates(notify: Boolean = false) {
+        if (_updateState.value is UpdateState.Checking || _updateState.value is UpdateState.Downloading) return
+        _updateState.value = UpdateState.Checking
+        viewModelScope.launch {
+            updateChecker.fetchLatest()
+                .onSuccess { release ->
+                    _updateBannerDismissed.value = false
+                    val newer = release.versionCode > appVersionCode ||
+                        (release.versionCode == appVersionCode &&
+                            SemVer.isNewer(release.versionName, appVersionName))
+                    _updateState.value = if (newer) {
+                        UpdateState.Available(release)
+                    } else {
+                        UpdateState.UpToDate(appVersionName)
+                    }
+                    if (notify && !newer) {
+                        _userMessage.value = "You're running the latest version ($appVersionName)."
+                    }
+                }
+                .onFailure { error ->
+                    val message = error.message ?: "Could not reach the update server"
+                    _updateState.value = UpdateState.Failed(message)
+                    if (notify) _userMessage.value = "Update check failed: $message"
+                }
+        }
+    }
+
+    /** Downloads the APK, verifies it, then opens the system installer. */
+    fun downloadAndInstallUpdate() {
+        val available = _updateState.value as? UpdateState.Available ?: return
+        val release = available.release
+        if (release.apkUrl.isBlank()) {
+            _updateState.value = UpdateState.Failed("No APK download link has been published yet.")
+            _userMessage.value = "No APK download link has been published yet."
+            return
+        }
+        _updateState.value = UpdateState.Downloading(0L, release.sizeBytes)
+        viewModelScope.launch {
+            updateChecker.download(getApplication(), release) { received, total ->
+                _updateState.value = UpdateState.Downloading(received, total)
+            }.onSuccess { apk ->
+                _updateState.value = UpdateState.Ready(release, apk)
+                _installPermissionNeeded.value = updateChecker.needsInstallPermission(getApplication())
+                installDownloadedUpdate()
+            }.onFailure { error ->
+                _updateState.value = UpdateState.Failed(error.message ?: "Download failed. Check your connection.")
+                _userMessage.value = error.message ?: "Update download failed. Check your connection."
+            }
+        }
+    }
+
+    /** Hands the downloaded APK to the Android package installer. */
+    fun installDownloadedUpdate() {
+        val ready = _updateState.value as? UpdateState.Ready ?: return
+        when (val outcome = updateChecker.install(getApplication(), ready.apk)) {
+            InstallOutcome.Started -> {
+                _installPermissionNeeded.value = false
+                _userMessage.value = "Installer opened. Confirm the update to finish."
+            }
+            InstallOutcome.NeedsPermission -> {
+                _installPermissionNeeded.value = true
+                _userMessage.value = "Allow installs from Wave Focus, then tap Install again."
+            }
+            is InstallOutcome.Failed -> {
+                _updateState.value = UpdateState.Failed(outcome.message)
+                _userMessage.value = "Could not start the installer: ${outcome.message}"
+            }
+        }
+    }
+
+    /** Re-opens the "install unknown apps" screen for this package. */
+    fun openInstallPermissionSettings() {
+        try {
+            val intent = android.content.Intent(
+                android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                android.net.Uri.parse("package:${getApplication<Application>().packageName}")
+            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            getApplication<Application>().startActivity(intent)
+        } catch (error: Exception) {
+            _userMessage.value = "Open Settings → Apps → Wave Focus → Install unknown apps."
+        }
+    }
+
+    fun openReleasePage() {
+        val release = (_updateState.value as? UpdateState.Available)?.release ?: return
+        if (release.apkUrl.isBlank()) return
+        try {
+            val intent = android.content.Intent(
+                android.content.Intent.ACTION_VIEW,
+                android.net.Uri.parse(release.apkUrl)
+            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            getApplication<Application>().startActivity(intent)
+        } catch (_: Exception) {
+            _userMessage.value = "Could not open the release page"
+        }
+    }
+
+    fun dismissUpdateBanner() { _updateBannerDismissed.value = true }
+
+    fun showUpdateBanner() { _updateBannerDismissed.value = false }
 
     /** Verify the Hijri date against the official Saudi (Umm al-Qura) calendar. */
     fun verifyHijriCalendar(force: Boolean = false) {

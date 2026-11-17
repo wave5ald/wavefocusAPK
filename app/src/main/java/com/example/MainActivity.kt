@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.components.MorePagesSheet
 import com.example.ui.components.WaveBackground
+import com.example.ui.components.AppUpdateBanner
 import com.example.ui.components.WaveBottomBar
 import com.example.ui.components.WaveTopBar
 import com.example.ui.screens.AnalyticsScreen
@@ -158,6 +159,8 @@ fun DailyRoutineApp(
                 onToggleLanguage = { viewModel.toggleLanguage() },
                 onMenu = { showMorePagesSheet = true }
             )
+
+            AppUpdateBanner(viewModel = viewModel)
 
             Box(modifier = Modifier.weight(1f)) {
                 Crossfade(targetState = currentTab, label = "tabCrossfade") { tab ->

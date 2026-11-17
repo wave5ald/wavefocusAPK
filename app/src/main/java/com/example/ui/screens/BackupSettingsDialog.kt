@@ -60,6 +60,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -96,6 +97,7 @@ import com.example.ui.theme.FocusIndigo
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.viewmodel.RoutineViewModel
 import com.example.util.RoutineDay
+import com.example.update.UpdateState
 import com.example.ui.viewmodel.AppEdition
 import com.example.util.BatteryOptimizationHelper
 
@@ -365,6 +367,8 @@ private fun SettingsMainPage(
         )
 
         DayCalendarSection(viewModel = viewModel, isArabic = isArabic)
+
+        UpdateSettingsSection(viewModel = viewModel, isArabic = isArabic)
 
         // Section: Appearance
         SettingsSectionHeader(title = if (isArabic) "المظهر والشاشة" else "APPEARANCE")
@@ -1752,6 +1756,188 @@ private fun DayCalendarSection(
                 enabled = hijriState != "syncing"
             ) {
                 Text(if (isArabic) "تحقق الآن" else "Verify now")
+            }
+        }
+    }
+}
+
+/**
+ * In-app update settings: installed build, manual check, release notes,
+ * download progress and a shortcut to the system installer.
+ */
+@Composable
+private fun UpdateSettingsSection(
+    viewModel: RoutineViewModel,
+    isArabic: Boolean
+) {
+    val state by viewModel.updateState.collectAsStateWithLifecycle()
+    val permissionNeeded by viewModel.installPermissionNeeded.collectAsStateWithLifecycle()
+
+    SettingsSectionHeader(title = if (isArabic) "التحديثات" else "UPDATES")
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isArabic) "الإصدار المثبت" else "Installed version",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${viewModel.appVersionName} (${viewModel.appVersionCode})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            when (val update = state) {
+                UpdateState.Idle -> Text(
+                    text = if (isArabic) {
+                        "يتحقق التطبيق تلقائيًا من وجود تحديث عند بدء التشغيل."
+                    } else {
+                        "The app checks for updates automatically when it starts."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                UpdateState.Checking -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text(
+                        text = if (isArabic) "جارٍ البحث عن تحديث…" else "Checking for updates…",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                is UpdateState.UpToDate -> Text(
+                    text = if (isArabic) {
+                        "أنت تستخدم أحدث إصدار (${update.currentVersion})."
+                    } else {
+                        "You're running the latest version (${update.currentVersion})."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SuccessGreen
+                )
+
+                is UpdateState.Available -> {
+                    Text(
+                        text = if (isArabic) {
+                            "الإصدار ${update.release.versionName} متوفر الآن."
+                        } else {
+                            "Version ${update.release.versionName} is available."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (update.release.releaseNotes.isNotBlank()) {
+                        Text(
+                            text = update.release.releaseNotes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Button(
+                        onClick = { viewModel.downloadAndInstallUpdate() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (isArabic) "تنزيل وتثبيت التحديث" else "Download & install update")
+                    }
+                }
+
+                is UpdateState.Downloading -> {
+                    Text(
+                        text = if (isArabic) {
+                            "جارٍ تنزيل التحديث… ${update.percent}%"
+                        } else {
+                            "Downloading update… ${update.percent}%"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    LinearProgressIndicator(
+                        progress = { update.percent / 100f },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        text = if (isArabic) {
+                            "يتم التحقق من الملف قبل فتح المثبّت."
+                        } else {
+                            "The download is verified before the installer opens."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                is UpdateState.Ready -> {
+                    Text(
+                        text = if (isArabic) {
+                            "تم تنزيل التحديث وهو جاهز للتثبيت."
+                        } else {
+                            "Update downloaded and ready to install."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = SuccessGreen
+                    )
+                    if (permissionNeeded) {
+                        Text(
+                            text = if (isArabic) {
+                                "اسمح بتثبيت التطبيقات من Wave Focus ثم أعد المحاولة."
+                            } else {
+                                "Allow Wave Focus to install unknown apps, then try again."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = FlameOrange
+                        )
+                    }
+                    Button(
+                        onClick = { viewModel.installDownloadedUpdate() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (isArabic) "تثبيت التحديث" else "Install update")
+                    }
+                    if (permissionNeeded) {
+                        TextButton(onClick = { viewModel.openInstallPermissionSettings() }) {
+                            Text(if (isArabic) "فتح إعدادات التثبيت" else "Open install permission settings")
+                        }
+                    }
+                }
+
+                is UpdateState.Failed -> Text(
+                    text = if (isArabic) {
+                        "تعذر التحقق من التحديثات: ${update.message}"
+                    } else {
+                        "Update check failed: ${update.message}"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            OutlinedButton(
+                onClick = { viewModel.checkForUpdates(notify = true) },
+                enabled = state !is UpdateState.Checking && state !is UpdateState.Downloading,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (isArabic) "التحقق من التحديثات" else "Check for updates")
             }
         }
     }
