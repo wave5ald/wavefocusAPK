@@ -55,14 +55,14 @@ sealed interface InstallOutcome {
  * The manifest is the same `version.json` the Windows app reads:
  * ```json
  * {
- *   "version": "2.1.0",
+ *   "version": "2.2.0",
  *   "android": {
- *     "version_name": "2.1",
- *     "version_code": 3,
- *     "apk_url": "https://github.com/wave5ald/wavefocusAPK/releases/download/Release/WaveFocus-2.1.apk",
+ *     "version_name": "2.2",
+ *     "version_code": 4,
+ *     "apk_url": "https://github.com/wave5ald/wavefocusAPK/releases/download/Release/WaveFocus-2.2.apk",
  *     "release_notes": "…",
  *     "sha256": "optional hex digest",
- *     "size_bytes": 5267470
+ *     "size_bytes": 5333070
  *   }
  * }
  * ```
