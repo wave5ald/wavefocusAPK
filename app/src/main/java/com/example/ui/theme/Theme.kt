@@ -11,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
 
 /* ==========================================================================
    Wave Focus theme — mirrors pwa/css/app.css design tokens.
@@ -161,6 +162,17 @@ private val LightWaveColors = WaveColors(
     outlineSoft = DayOutlineVariant
 )
 
+/** Rotate the accent tokens that live outside [MaterialTheme]. */
+fun WaveColors.shiftHue(degrees: Float): WaveColors {
+    if (abs(degrees % 360f) < 0.01f) return this
+    return copy(
+        primarySoft = primarySoft.shiftHue(degrees),
+        secondarySoft = secondarySoft.shiftHue(degrees),
+        tertiarySoft = tertiarySoft.shiftHue(degrees),
+        heroGlow = heroGlow.shiftHue(degrees)
+    )
+}
+
 val LocalWaveColors = staticCompositionLocalOf { DarkWaveColors }
 
 object WaveTheme {
@@ -171,6 +183,7 @@ object WaveTheme {
 @Composable
 fun MyApplicationTheme(
     themeMode: String = "system",
+    hueShift: Float = 0f,
     content: @Composable () -> Unit
 ) {
     val isDark = when (themeMode) {
@@ -179,8 +192,9 @@ fun MyApplicationTheme(
         else -> isSystemInDarkTheme()
     }
 
-    val colorScheme = if (isDark) DarkColorScheme else LightColorScheme
-    val waveColors = if (isDark) DarkWaveColors else LightWaveColors
+    // The settings slider rotates every accent colour of the palette.
+    val colorScheme = (if (isDark) DarkColorScheme else LightColorScheme).shiftHue(hueShift)
+    val waveColors = (if (isDark) DarkWaveColors else LightWaveColors).shiftHue(hueShift)
 
     CompositionLocalProvider(LocalWaveColors provides waveColors) {
         MaterialTheme(

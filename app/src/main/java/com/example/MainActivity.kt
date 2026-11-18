@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
             routineViewModel = viewModel
 
             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+            val themeHue by viewModel.themeHue.collectAsStateWithLifecycle()
             val appLanguage by viewModel.appLanguage.collectAsStateWithLifecycle()
             val layoutDirection = if (appLanguage == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr
 
@@ -75,7 +76,7 @@ class MainActivity : ComponentActivity() {
                 LocalLayoutDirection provides layoutDirection,
                 LocalAppLanguage provides appLanguage
             ) {
-                MyApplicationTheme(themeMode = themeMode) {
+                MyApplicationTheme(themeMode = themeMode, hueShift = themeHue) {
                     DailyRoutineApp(viewModel = viewModel, themeMode = themeMode)
                 }
             }
@@ -115,6 +116,7 @@ fun DailyRoutineApp(
     val activeCustomPage by viewModel.activeCustomPage.collectAsStateWithLifecycle()
     val appEdition by viewModel.appEdition.collectAsStateWithLifecycle()
     val currentLang by viewModel.appLanguage.collectAsStateWithLifecycle()
+    val themeHue by viewModel.themeHue.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var showSettingsDialog by remember { mutableStateOf(false) }
@@ -242,6 +244,8 @@ fun DailyRoutineApp(
         BackupSettingsDialog(
             viewModel = viewModel,
             currentThemeMode = themeMode,
+            currentHue = themeHue,
+            onHueChange = { viewModel.setThemeHue(it) },
             onDismiss = { showSettingsDialog = false }
         )
     }
